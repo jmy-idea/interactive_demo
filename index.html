@@ -131,6 +131,7 @@
             console.log('开始发送请求，keys:', currentKeys);
             
             try {
+<<<<<<< HEAD
                 const requestData = {
                     image: currentImage,
                     keys: currentKeys
@@ -138,6 +139,8 @@
 
                 console.log('请求数据大小:', JSON.stringify(requestData).length, '字符');
                 
+=======
+>>>>>>> 28a9fc5cdb294e805bef642d1897f7f7b50b9a3a
                 const response = await fetch('http://127.0.0.1:5000/api/process', {
                     method: 'POST',
                     headers: {
