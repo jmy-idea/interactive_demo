@@ -5,6 +5,7 @@
     <style>
         #preview { max-width: 300px; max-height: 300px; }
         #status { margin: 10px 0; padding: 10px; }
+        .key-active { background-color: yellow; }
     </style>
 </head>
 <body>
@@ -35,6 +36,7 @@
                 reader.onload = function(e) {
                     document.getElementById('preview').src = e.target.result;
                     currentImage = e.target.result;
+                    setStatus('图片上传成功！现在可以按WASD键测试');
                 };
                 reader.readAsDataURL(file);
             }
@@ -74,7 +76,8 @@
             setStatus('发送数据到服务器...');
             
             try {
-                const response = await fetch('http://你的服务器地址/api/process', {
+                // 使用你的实际服务器地址
+                const response = await fetch('http://127.0.0.1:5000/api/process', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -85,12 +88,22 @@
                     })
                 });
 
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+
                 const result = await response.json();
-                document.getElementById('result').textContent = 
-                    `模型返回结果：${JSON.stringify(result)}`;
-                setStatus('处理完成');
+                document.getElementById('result').innerHTML = 
+                    `<strong>模型返回结果：</strong><br>
+                    情感: ${result.result}<br>
+                    图片尺寸: ${result.image_size}<br>
+                    接收到的按键: ${result.keys_received.join(', ')}<br>
+                    处理时间: ${result.processed_at}`;
+                setStatus('处理完成！');
+                
             } catch (error) {
                 setStatus('发送失败：' + error.message);
+                console.error('错误详情:', error);
             }
         }
 
