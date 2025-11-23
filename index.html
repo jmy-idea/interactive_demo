@@ -6,6 +6,7 @@
         #preview { max-width: 300px; max-height: 300px; border: 1px solid #ccc; }
         #status { margin: 10px 0; padding: 10px; background: #f0f0f0; }
         #result { margin: 10px 0; padding: 10px; background: #e8f5e8; border: 1px solid #4caf50; }
+        body { font-family: Arial, sans-serif; margin: 20px; }
     </style>
 </head>
 <body>
@@ -19,6 +20,11 @@
     <div>
         <p>按 WASD 键进行输入：</p>
         <div id="keyDisplay">当前按键：无</div>
+    </div>
+
+    <div>
+        <button onclick="testConnection()">测试API连接</button>
+        <button onclick="testPostRequest()">测试POST请求</button>
     </div>
     
     <div id="status">准备就绪</div>
@@ -37,6 +43,7 @@
                     document.getElementById('preview').src = e.target.result;
                     currentImage = e.target.result;
                     setStatus('图片上传成功！现在可以按WASD键测试');
+                    console.log('图片已加载，base64长度:', currentImage.length);
                 };
                 reader.readAsDataURL(file);
             }
@@ -66,7 +73,54 @@
                 `当前按键：${currentKeys.join(', ') || '无'}`;
         }
 
-        // 发送到服务器 - 修复后的版本
+        // 测试GET连接
+        async function testConnection() {
+            setStatus('测试GET连接...');
+            try {
+                const response = await fetch('http://127.0.0.1:5000/');
+                const result = await response.json();
+                setStatus('GET连接成功: ' + result.message);
+                console.log('GET测试成功:', result);
+            } catch (error) {
+                setStatus('GET连接失败: ' + error.message);
+                console.error('GET测试失败:', error);
+            }
+        }
+
+        // 测试POST请求（不带图片）
+        async function testPostRequest() {
+            setStatus('测试POST请求...');
+            try {
+                const testData = {
+                    image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+                    keys: ['w', 'a']
+                };
+
+                const response = await fetch('http://127.0.0.1:5000/api/process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+
+                console.log('POST响应状态:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+
+                const result = await response.json();
+                setStatus('POST测试成功！');
+                console.log('POST测试成功:', result);
+                
+            } catch (error) {
+                setStatus('POST测试失败: ' + error.message);
+                console.error('POST测试失败:', error);
+            }
+        }
+
+        // 发送到服务器
         async function sendToServer() {
             if (!currentImage) {
                 setStatus('请先上传图片');
@@ -74,44 +128,46 @@
             }
 
             setStatus('发送数据到服务器...');
+            console.log('开始发送请求，keys:', currentKeys);
             
             try {
-                const response = await fetch('http://101.126.31.72:5000/api/process', {
+                const requestData = {
+                    image: currentImage,
+                    keys: currentKeys
+                };
+
+                console.log('请求数据大小:', JSON.stringify(requestData).length, '字符');
+                
+                const response = await fetch('http://127.0.0.1:5000/api/process', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        image: currentImage,
-                        keys: currentKeys
-                    })
+                    body: JSON.stringify(requestData)
                 });
 
+                console.log('收到响应，状态码:', response.status);
+                
                 if (!response.ok) {
-                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                    const errorText = await response.text();
+                    console.error('响应错误内容:', errorText);
+                    throw new Error(`HTTP错误! 状态码: ${response.status}, 响应: ${errorText}`);
                 }
 
                 const result = await response.json();
-                console.log('服务器返回:', result); // 调试用
+                console.log('请求成功，返回:', result);
                 
-                // 安全地处理返回数据
-                let resultHTML = `<strong>服务器返回结果：</strong><br>`;
-                
-                if (result.success) {
-                    resultHTML += `情感: ${result.result}<br>`;
-                    resultHTML += `图片尺寸: ${result.image_size || '未知'}<br>`;
-                    resultHTML += `接收到的按键: ${result.keys_received ? result.keys_received.join(', ') : '无'}<br>`;
-                    resultHTML += `处理时间: ${result.processed_at || '未知'}`;
-                } else {
-                    resultHTML += `错误: ${result.error}`;
-                }
-                
-                document.getElementById('result').innerHTML = resultHTML;
+                document.getElementById('result').innerHTML = 
+                    `<strong>服务器返回结果：</strong><br>
+                    情感: ${result.result}<br>
+                    图片尺寸: ${result.image_size}<br>
+                    按键: ${result.keys_received.join(', ')}<br>
+                    时间: ${result.processed_at}`;
                 setStatus('处理完成！');
                 
             } catch (error) {
+                console.error('完整错误信息:', error);
                 setStatus('发送失败：' + error.message);
-                console.error('错误详情:', error);
             }
         }
 
