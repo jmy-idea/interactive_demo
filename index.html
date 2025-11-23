@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>图片与键盘输入检测</title>
+    <style>
+        #preview { max-width: 300px; max-height: 300px; }
+        #status { margin: 10px 0; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>图片上传与键盘输入检测</h1>
+    
+    <div>
+        <input type="file" id="imageInput" accept="image/*">
+        <img id="preview" src="" alt="图片预览">
+    </div>
+    
+    <div>
+        <p>按 WASD 键进行输入：</p>
+        <div id="keyDisplay">当前按键：无</div>
+    </div>
+    
+    <div id="status">准备就绪</div>
+    <div id="result"></div>
+
+    <script>
+        let currentImage = null;
+        let currentKeys = [];
+
+        // 图片上传处理
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('preview').src = e.target.result;
+                    currentImage = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // 键盘输入检测
+        document.addEventListener('keydown', function(e) {
+            const key = e.key.toLowerCase();
+            if (['w', 'a', 's', 'd'].includes(key) && !currentKeys.includes(key)) {
+                currentKeys.push(key);
+                updateKeyDisplay();
+                sendToServer();
+            }
+        });
+
+        document.addEventListener('keyup', function(e) {
+            const key = e.key.toLowerCase();
+            const index = currentKeys.indexOf(key);
+            if (index > -1) {
+                currentKeys.splice(index, 1);
+                updateKeyDisplay();
+            }
+        });
+
+        function updateKeyDisplay() {
+            document.getElementById('keyDisplay').textContent = 
+                `当前按键：${currentKeys.join(', ') || '无'}`;
+        }
+
+        // 发送到服务器
+        async function sendToServer() {
+            if (!currentImage) {
+                setStatus('请先上传图片');
+                return;
+            }
+
+            setStatus('发送数据到服务器...');
+            
+            try {
+                const response = await fetch('http://你的服务器地址/api/process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: currentImage,
+                        keys: currentKeys
+                    })
+                });
+
+                const result = await response.json();
+                document.getElementById('result').textContent = 
+                    `模型返回结果：${JSON.stringify(result)}`;
+                setStatus('处理完成');
+            } catch (error) {
+                setStatus('发送失败：' + error.message);
+            }
+        }
+
+        function setStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+    </script>
+</body>
+</html>
