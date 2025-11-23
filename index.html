@@ -3,9 +3,9 @@
 <head>
     <title>图片与键盘输入检测</title>
     <style>
-        #preview { max-width: 300px; max-height: 300px; }
-        #status { margin: 10px 0; padding: 10px; }
-        .key-active { background-color: yellow; }
+        #preview { max-width: 300px; max-height: 300px; border: 1px solid #ccc; }
+        #status { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+        #result { margin: 10px 0; padding: 10px; background: #e8f5e8; border: 1px solid #4caf50; }
     </style>
 </head>
 <body>
@@ -66,7 +66,7 @@
                 `当前按键：${currentKeys.join(', ') || '无'}`;
         }
 
-        // 发送到服务器
+        // 发送到服务器 - 修复后的版本
         async function sendToServer() {
             if (!currentImage) {
                 setStatus('请先上传图片');
@@ -76,7 +76,6 @@
             setStatus('发送数据到服务器...');
             
             try {
-                // 使用你的实际服务器地址
                 const response = await fetch('http://101.126.31.72:5000/api/process', {
                     method: 'POST',
                     headers: {
@@ -93,12 +92,21 @@
                 }
 
                 const result = await response.json();
-                document.getElementById('result').innerHTML = 
-                    `<strong>模型返回结果：</strong><br>
-                    情感: ${result.result}<br>
-                    图片尺寸: ${result.image_size}<br>
-                    接收到的按键: ${result.keys_received.join(', ')}<br>
-                    处理时间: ${result.processed_at}`;
+                console.log('服务器返回:', result); // 调试用
+                
+                // 安全地处理返回数据
+                let resultHTML = `<strong>服务器返回结果：</strong><br>`;
+                
+                if (result.success) {
+                    resultHTML += `情感: ${result.result}<br>`;
+                    resultHTML += `图片尺寸: ${result.image_size || '未知'}<br>`;
+                    resultHTML += `接收到的按键: ${result.keys_received ? result.keys_received.join(', ') : '无'}<br>`;
+                    resultHTML += `处理时间: ${result.processed_at || '未知'}`;
+                } else {
+                    resultHTML += `错误: ${result.error}`;
+                }
+                
+                document.getElementById('result').innerHTML = resultHTML;
                 setStatus('处理完成！');
                 
             } catch (error) {
