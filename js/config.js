@@ -19,8 +19,8 @@ const MODEL_CONFIG = {
         description: '高质量模型，效果更好'
     },
     'custom_model': {
-        name: '自定义模型',
-        pipeline: 'custom_model',
+        name: '3步蒸馏模型',
+        pipeline: 'distilled_interactive_model',
         description: '使用自定义pipeline'
     }
 };
