@@ -254,16 +254,67 @@ class VideoGenerator {
         const currentFrame = document.getElementById('currentFrame');
         const videoPlaceholder = document.querySelector('.video-placeholder');
 
+        console.log('显示媒体数据:', {
+            hasVideoData: !!result.video_data,
+            hasCurrentFrame: !!result.current_frame,
+            currentFrameType: typeof result.current_frame,
+            currentFrameLength: result.current_frame ? result.current_frame.length : 0
+        });
+
         if (result.video_data) {
+            // 显示视频
             videoPlayer.src = result.video_data;
             videoPlayer.style.display = 'block';
             currentFrame.style.display = 'none';
             videoPlaceholder.style.display = 'none';
+            console.log('视频数据已设置');
         } else if (result.current_frame) {
-            currentFrame.src = `data:image/png;base64,${result.current_frame}`;
-            currentFrame.style.display = 'block';
+            // 显示当前帧 - 修复base64数据处理
+            let imageSrc = result.current_frame;
+            
+            // 检查是否已经是完整的data URL
+            if (typeof imageSrc === 'string') {
+                if (imageSrc.startsWith('data:image/')) {
+                    // 已经是data URL，直接使用
+                    console.log('使用完整的data URL');
+                } else if (imageSrc.startsWith('/9j/') || imageSrc.startsWith('iVBOR')) {
+                    // 是纯base64数据，需要添加前缀
+                    console.log('检测到纯base64数据，添加前缀');
+                    imageSrc = `data:image/png;base64,${imageSrc}`;
+                } else {
+                    // 其他情况，尝试作为base64处理
+                    console.log('作为base64数据处理');
+                    imageSrc = `data:image/png;base64,${imageSrc}`;
+                }
+            }
+            
+            console.log('最终图片URL长度:', imageSrc.length);
+            console.log('图片URL前100字符:', imageSrc.substring(0, 100));
+            
+            currentFrame.onload = function() {
+                console.log('✅ 图片加载成功');
+                currentFrame.style.display = 'block';
+                videoPlayer.style.display = 'none';
+                videoPlaceholder.style.display = 'none';
+            };
+            
+            currentFrame.onerror = function() {
+                console.error('❌ 图片加载失败');
+                console.log('图片SRC:', imageSrc.substring(0, 200) + '...');
+                
+                // 尝试不同的格式
+                const alternativeSrc = imageSrc.replace('image/png', 'image/jpeg');
+                console.log('尝试JPEG格式:', alternativeSrc.substring(0, 100));
+                currentFrame.src = alternativeSrc;
+            };
+            
+            currentFrame.src = imageSrc;
+        } else {
+            // 没有媒体数据
+            console.log('没有可显示的媒体数据');
             videoPlayer.style.display = 'none';
-            videoPlaceholder.style.display = 'none';
+            currentFrame.style.display = 'none';
+            videoPlaceholder.style.display = 'block';
         }
     }
 
