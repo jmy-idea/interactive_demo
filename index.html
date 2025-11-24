@@ -1,182 +1,98 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <title>图片与键盘输入检测</title>
-    <style>
-        #preview { max-width: 300px; max-height: 300px; border: 1px solid #ccc; }
-        #status { margin: 10px 0; padding: 10px; background: #f0f0f0; }
-        #result { margin: 10px 0; padding: 10px; background: #e8f5e8; border: 1px solid #4caf50; }
-        body { font-family: Arial, sans-serif; margin: 20px; }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI视频生成平台</title>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <h1>图片上传与键盘输入检测</h1>
-    
-    <div>
-        <input type="file" id="imageInput" accept="image/*">
-        <img id="preview" src="" alt="图片预览">
+    <div class="container">
+        <header class="header">
+            <h1>🎬 AI视频生成平台</h1>
+            <p>上传图片，使用WASD控制视角，实时生成视频</p>
+        </header>
+
+        <div class="main-content">
+            <!-- 左侧控制面板 -->
+            <div class="control-panel">
+                <div class="model-selector">
+                    <h3>模型选择</h3>
+                    <select id="modelSelect" class="model-select">
+                        <option value="1.3B">Wan2.1-Fun 1.3B模型</option>
+                        <option value="14B">Wan2.1-Fun 14B模型</option>
+                        <option value="custom">自定义模型</option>
+                    </select>
+                    <input type="text" id="customModel" class="custom-model-input" placeholder="输入自定义模型路径" style="display: none;">
+                </div>
+
+                <div class="upload-section">
+                    <h3>📷 上传图片</h3>
+                    <div class="upload-area" id="uploadArea">
+                        <input type="file" id="imageInput" accept="image/*" hidden>
+                        <div class="upload-placeholder">
+                            <span class="upload-icon">📁</span>
+                            <p>点击选择图片或拖拽到此区域</p>
+                        </div>
+                        <img id="preview" class="preview-image" src="" alt="图片预览">
+                    </div>
+                </div>
+
+                <div class="keyboard-section">
+                    <h3>🎮 键盘控制 (WASD)</h3>
+                    <div class="key-container">
+                        <div class="key-row">
+                            <div class="key key-w" id="keyW">W</div>
+                        </div>
+                        <div class="key-row">
+                            <div class="key key-a" id="keyA">A</div>
+                            <div class="key key-s" id="keyS">S</div>
+                            <div class="key key-d" id="keyD">D</div>
+                        </div>
+                    </div>
+                    <div class="current-keys" id="currentKeys">当前按键：无</div>
+                </div>
+
+                <div class="control-buttons">
+                    <button id="sendButton" class="btn btn-primary">发送到服务器</button>
+                    <button id="clearButton" class="btn btn-secondary">清空</button>
+                    <button id="testButton" class="btn btn-test">测试连接</button>
+                </div>
+            </div>
+
+            <!-- 右侧结果显示 -->
+            <div class="result-panel">
+                <div class="status-section">
+                    <h3>📊 状态信息</h3>
+                    <div id="status" class="status-box">准备就绪</div>
+                </div>
+
+                <div class="result-section">
+                    <h3>🎥 生成结果</h3>
+                    <div id="result" class="result-box">
+                        <div class="result-placeholder">
+                            <span class="result-icon">⏳</span>
+                            <p>等待生成视频...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="video-section">
+                    <h3>📹 视频预览</h3>
+                    <div id="videoContainer" class="video-container">
+                        <video id="videoPlayer" controls style="display: none;"></video>
+                        <img id="currentFrame" src="" alt="当前帧" style="display: none;">
+                        <div class="video-placeholder">
+                            <span class="video-icon">🎬</span>
+                            <p>视频将在此显示</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    
-    <div>
-        <p>按 WASD 键进行输入：</p>
-        <div id="keyDisplay">当前按键：无</div>
-    </div>
 
-    <div>
-        <button onclick="testConnection()">测试API连接</button>
-        <button onclick="testPostRequest()">测试POST请求</button>
-    </div>
-    
-    <div id="status">准备就绪</div>
-    <div id="result"></div>
-
-    <script>
-        let currentImage = null;
-        let currentKeys = [];
-
-        // 图片上传处理
-        document.getElementById('imageInput').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    document.getElementById('preview').src = e.target.result;
-                    currentImage = e.target.result;
-                    setStatus('图片上传成功！现在可以按WASD键测试');
-                    console.log('图片已加载，base64长度:', currentImage.length);
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        // 键盘输入检测
-        document.addEventListener('keydown', function(e) {
-            const key = e.key.toLowerCase();
-            if (['w', 'a', 's', 'd'].includes(key) && !currentKeys.includes(key)) {
-                currentKeys.push(key);
-                updateKeyDisplay();
-                sendToServer();
-            }
-        });
-
-        document.addEventListener('keyup', function(e) {
-            const key = e.key.toLowerCase();
-            const index = currentKeys.indexOf(key);
-            if (index > -1) {
-                currentKeys.splice(index, 1);
-                updateKeyDisplay();
-            }
-        });
-
-        function updateKeyDisplay() {
-            document.getElementById('keyDisplay').textContent = 
-                `当前按键：${currentKeys.join(', ') || '无'}`;
-        }
-
-        // 测试GET连接
-        async function testConnection() {
-            setStatus('测试GET连接...');
-            try {
-                const response = await fetch('http://127.0.0.1:5000/');
-                const result = await response.json();
-                setStatus('GET连接成功: ' + result.message);
-                console.log('GET测试成功:', result);
-            } catch (error) {
-                setStatus('GET连接失败: ' + error.message);
-                console.error('GET测试失败:', error);
-            }
-        }
-
-        // 测试POST请求（不带图片）
-        async function testPostRequest() {
-            setStatus('测试POST请求...');
-            try {
-                const testData = {
-                    image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
-                    keys: ['w', 'a']
-                };
-
-                const response = await fetch('http://127.0.0.1:5000/api/process', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(testData)
-                });
-
-                console.log('POST响应状态:', response.status);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
-                }
-
-                const result = await response.json();
-                setStatus('POST测试成功！');
-                console.log('POST测试成功:', result);
-                
-            } catch (error) {
-                setStatus('POST测试失败: ' + error.message);
-                console.error('POST测试失败:', error);
-            }
-        }
-
-        // 发送到服务器
-        async function sendToServer() {
-            if (!currentImage) {
-                setStatus('请先上传图片');
-                return;
-            }
-
-            setStatus('发送数据到服务器...');
-            console.log('开始发送请求，keys:', currentKeys);
-            
-            try {
-<<<<<<< HEAD
-                const requestData = {
-                    image: currentImage,
-                    keys: currentKeys
-                };
-
-                console.log('请求数据大小:', JSON.stringify(requestData).length, '字符');
-                
-=======
->>>>>>> 28a9fc5cdb294e805bef642d1897f7f7b50b9a3a
-                const response = await fetch('http://127.0.0.1:5000/api/process', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(requestData)
-                });
-
-                console.log('收到响应，状态码:', response.status);
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('响应错误内容:', errorText);
-                    throw new Error(`HTTP错误! 状态码: ${response.status}, 响应: ${errorText}`);
-                }
-
-                const result = await response.json();
-                console.log('请求成功，返回:', result);
-                
-                document.getElementById('result').innerHTML = 
-                    `<strong>服务器返回结果：</strong><br>
-                    情感: ${result.result}<br>
-                    图片尺寸: ${result.image_size}<br>
-                    按键: ${result.keys_received.join(', ')}<br>
-                    时间: ${result.processed_at}`;
-                setStatus('处理完成！');
-                
-            } catch (error) {
-                console.error('完整错误信息:', error);
-                setStatus('发送失败：' + error.message);
-            }
-        }
-
-        function setStatus(message) {
-            document.getElementById('status').textContent = message;
-        }
-    </script>
+    <script src="js/config.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
