@@ -165,6 +165,17 @@ body {
     font-weight: bold;
 }
 
+.auto-send-notice {
+    margin-top: 10px;
+    padding: 8px;
+    background: #e6fffa;
+    border: 1px solid #81e6d9;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 12px;
+    color: #234e52;
+}
+
 /* 按钮样式 */
 .control-buttons {
     display: flex;

@@ -2,7 +2,9 @@ class VideoGenerator {
     constructor() {
         this.currentImage = null;
         this.currentKeys = [];
-        this.currentModel = '1.3B';
+        this.currentModel = 'wan 1.3B';
+        this.isProcessing = false; // 防止重复发送
+        this.lastSendTime = 0; // 节流控制
         this.init();
     }
 
@@ -15,11 +17,10 @@ class VideoGenerator {
         // 模型选择
         document.getElementById('modelSelect').addEventListener('change', (e) => {
             this.currentModel = e.target.value;
-            this.toggleCustomModelInput();
-            console.log(`切换到模型: ${this.currentModel}`);
+            this.setStatus(`已切换到: ${this.currentModel}`);
         });
 
-        // 图片上传
+        // 图片上传 (保持不变)
         const uploadArea = document.getElementById('uploadArea');
         const imageInput = document.getElementById('imageInput');
         
@@ -43,19 +44,13 @@ class VideoGenerator {
             if (e.target.files[0]) this.handleImageUpload(e.target.files[0]);
         });
 
-        // 键盘控制
+        // 键盘控制 - 实时发送
         document.addEventListener('keydown', (e) => this.handleKeyDown(e));
         document.addEventListener('keyup', (e) => this.handleKeyUp(e));
 
-        // 按钮事件
-        document.getElementById('sendButton').addEventListener('click', () => this.sendToServer());
+        // 按钮事件 - 移除发送按钮
         document.getElementById('clearButton').addEventListener('click', () => this.clearAll());
         document.getElementById('testButton').addEventListener('click', () => this.testConnection());
-    }
-
-    toggleCustomModelInput() {
-        const customInput = document.getElementById('customModel');
-        customInput.style.display = this.currentModel === 'custom' ? 'block' : 'none';
     }
 
     handleImageUpload(file) {
@@ -69,7 +64,7 @@ class VideoGenerator {
             preview.style.display = 'block';
             placeholder.style.display = 'none';
             
-            this.setStatus('图片上传成功！现在可以按WASD键测试');
+            this.setStatus('首帧图片已上传！现在可以使用 WASD 键实时控制');
         };
         reader.readAsDataURL(file);
     }
@@ -77,10 +72,12 @@ class VideoGenerator {
     handleKeyDown(e) {
         const key = e.key.toLowerCase();
         if (['w', 'a', 's', 'd'].includes(key) && !this.currentKeys.includes(key)) {
+            // 添加按键
             this.currentKeys.push(key);
             this.updateKeyDisplay();
             this.updateKeyVisual();
-            // 自动发送到服务器
+            
+            // 立即发送到服务器（带节流）
             this.sendToServer();
         }
     }
@@ -92,6 +89,11 @@ class VideoGenerator {
             this.currentKeys.splice(index, 1);
             this.updateKeyDisplay();
             this.updateKeyVisual();
+            
+            // 按键释放时也发送状态更新
+            if (this.currentKeys.length === 0) {
+                this.sendToServer();
+            }
         }
     }
 
@@ -112,25 +114,37 @@ class VideoGenerator {
     }
 
     async sendToServer() {
+        // 检查是否有图片
         if (!this.currentImage) {
-            this.setStatus('请先上传图片');
+            this.setStatus('请先上传首帧图片');
             return;
         }
 
-        this.setStatus('发送数据到服务器...');
-        
-        try {
-            const modelPath = this.currentModel === 'custom' 
-                ? document.getElementById('customModel').value 
-                : MODEL_CONFIG[this.currentModel].path;
+        // 节流控制：避免过于频繁的请求
+        const now = Date.now();
+        if (now - this.lastSendTime < 100) { // 100ms 节流
+            return;
+        }
+        this.lastSendTime = now;
 
+        // 防止重复请求
+        if (this.isProcessing) {
+            return;
+        }
+
+        this.isProcessing = true;
+        this.setStatus('发送控制指令...');
+
+        try {
             const response = await fetch(`${API_CONFIG.baseURL}${API_CONFIG.endpoints.process}`, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {
+                    'Content-Type': 'application/json',
+                },
                 body: JSON.stringify({
                     image: this.currentImage,
                     keys: this.currentKeys,
-                    model: this.currentModel  // 发送pipeline ID
+                    model: this.currentModel
                 })
             });
 
@@ -144,21 +158,23 @@ class VideoGenerator {
         } catch (error) {
             this.setStatus('发送失败：' + error.message);
             console.error('错误详情:', error);
+        } finally {
+            this.isProcessing = false;
         }
     }
 
     handleServerResponse(result) {
         if (result.success) {
-            this.setStatus('处理完成！');
+            this.setStatus(`控制指令已处理 - 模型: ${this.currentModel}`);
             
             // 更新结果文本
             document.getElementById('result').innerHTML = `
                 <div class="result-success">
-                    <strong>生成结果：</strong><br>
-                    情感: ${result.result}<br>
-                    图片尺寸: ${result.image_size}<br>
-                    按键: ${result.keys_received?.join(', ') || '无'}<br>
-                    处理时间: ${result.processed_at}
+                    <strong>实时控制结果：</strong><br>
+                    动作: ${result.keys_received?.join(', ') || '无'}<br>
+                    模型: ${result.model_used || this.currentModel}<br>
+                    状态: ${result.result || '处理完成'}<br>
+                    时间: ${result.processed_at || '刚刚'}
                 </div>
             `;
 
@@ -194,7 +210,7 @@ class VideoGenerator {
         try {
             const response = await fetch(`${API_CONFIG.baseURL}${API_CONFIG.endpoints.status}`);
             const result = await response.json();
-            this.setStatus(`连接成功: 模型状态 - ${result.model_ready ? '就绪' : '未就绪'}`);
+            this.setStatus(`连接成功: 服务器运行正常`);
         } catch (error) {
             this.setStatus('连接失败：' + error.message);
         }
@@ -221,7 +237,7 @@ class VideoGenerator {
         
         this.updateKeyDisplay();
         this.updateKeyVisual();
-        this.setStatus('已清空');
+        this.setStatus('已清空图片 - 请上传新的首帧图片');
     }
 
     setStatus(message) {
