@@ -9,8 +9,8 @@
 <body>
     <div class="container">
         <header class="header">
-            <h1>🎬 AI视频生成平台</h1>
-            <p>上传图片，使用WASD控制视角，实时生成视频</p>
+            <h1>🎬 Interactive platform</h1>
+            <p>上传首帧图片，使用WASD控制视角，实时生成视频</p>
         </header>
 
         <div class="main-content">
@@ -19,11 +19,10 @@
                 <div class="model-selector">
                     <h3>模型选择</h3>
                     <select id="modelSelect" class="model-select">
-                        <option value="1.3B">Wan2.1-Fun 1.3B模型</option>
-                        <option value="14B">Wan2.1-Fun 14B模型</option>
-                        <option value="custom">自定义模型</option>
+                        <option value="wan 1.3B">Wan2.1-Fun 1.3B camera control</option>
+                        <option value="wan 14B">Wan2.1-Fun 14B camera control</option>
+                        <option value="distilled interactive model">3-steps distilled model</option>
                     </select>
-                    <input type="text" id="customModel" class="custom-model-input" placeholder="输入自定义模型路径" style="display: none;">
                 </div>
 
                 <div class="upload-section">
