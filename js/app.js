@@ -136,6 +136,9 @@ class VideoGenerator {
         this.setStatus('发送控制指令...');
 
         try {
+            const modelConfig = MODEL_CONFIG[this.currentModel];
+            const pipelineId = modelConfig ? modelConfig.pipeline : 'wan_1.3b';
+            
             const response = await fetch(`${API_CONFIG.baseURL}${API_CONFIG.endpoints.process}`, {
                 method: 'POST',
                 headers: {
@@ -144,7 +147,7 @@ class VideoGenerator {
                 body: JSON.stringify({
                     image: this.currentImage,
                     keys: this.currentKeys,
-                    model: this.currentModel
+                    model: pipelineId
                 })
             });
 
