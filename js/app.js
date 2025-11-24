@@ -2,15 +2,34 @@ class VideoGenerator {
     constructor() {
         this.currentImage = null;
         this.currentKeys = [];
-        this.currentModel = 'wan_1.3B'; // 修正模型名称
+        this.currentModel = 'wan_1.3B';
         this.isProcessing = false;
         this.lastSendTime = 0;
+        this.videoQueue = []; // 视频队列
+        this.isPlaying = false; // 当前是否在播放
         this.init();
     }
 
     init() {
         this.bindEvents();
         this.updateKeyDisplay();
+        this.setupVideoPlayer();
+    }
+
+    setupVideoPlayer() {
+        const videoPlayer = document.getElementById('videoPlayer');
+        
+        // 视频结束事件 - 播放下一个视频
+        videoPlayer.addEventListener('ended', () => {
+            console.log('当前视频播放结束');
+            this.playNextVideo();
+        });
+        
+        // 视频错误处理
+        videoPlayer.addEventListener('error', (e) => {
+            console.error('视频播放错误:', e);
+            this.playNextVideo();
+        });
     }
 
     bindEvents() {
@@ -233,82 +252,57 @@ class VideoGenerator {
         if (result.success) {
             this.setStatus(`控制指令已处理 - 模型: ${this.currentModel}`);
             
+            // 更新结果显示
             document.getElementById('result').innerHTML = `
                 <div class="result-success">
                     <strong>实时控制结果：</strong><br>
                     动作: ${result.keys_received?.join(', ') || '无'}<br>
                     模型: ${result.model_used || this.currentModel}<br>
                     状态: ${result.result || '处理完成'}<br>
-                    时间: ${result.processed_at || '刚刚'}
+                    时间: ${new Date(result.processed_at * 1000).toLocaleTimeString() || '刚刚'}
+                    ${result.video_data ? '<br>🎥 视频数据已接收' : ''}
                 </div>
             `;
 
-            this.displayMedia(result);
+            // 处理媒体数据
+            this.processMediaResponse(result);
+            
         } else {
             this.setStatus('处理失败：' + (result.error || '未知错误'));
         }
     }
 
-    displayMedia(result) {
+    processMediaResponse(result) {
         const videoPlayer = document.getElementById('videoPlayer');
         const currentFrame = document.getElementById('currentFrame');
         const videoPlaceholder = document.querySelector('.video-placeholder');
 
-        console.log('显示媒体数据:', {
+        console.log('处理媒体数据:', {
             hasVideoData: !!result.video_data,
-            hasCurrentFrame: !!result.current_frame,
-            currentFrameType: typeof result.current_frame,
-            currentFrameLength: result.current_frame ? result.current_frame.length : 0
+            hasCurrentFrame: !!result.current_frame
         });
 
+        // 优先处理视频数据
         if (result.video_data) {
-            // 显示视频
-            videoPlayer.src = result.video_data;
-            videoPlayer.style.display = 'block';
+            console.log('🎥 收到视频数据，添加到播放队列');
+            
+            // 添加到视频队列
+            this.videoQueue.push(result.video_data);
+            
+            // 隐藏图片和占位符
             currentFrame.style.display = 'none';
             videoPlaceholder.style.display = 'none';
-            console.log('视频数据已设置');
-        } else if (result.current_frame) {
-            // 显示当前帧 - 修复base64数据处理
-            let imageSrc = result.current_frame;
+            videoPlayer.style.display = 'block';
             
-            // 检查是否已经是完整的data URL
-            if (typeof imageSrc === 'string') {
-                if (imageSrc.startsWith('data:image/')) {
-                    // 已经是data URL，直接使用
-                    console.log('使用完整的data URL');
-                } else if (imageSrc.startsWith('/9j/') || imageSrc.startsWith('iVBOR')) {
-                    // 是纯base64数据，需要添加前缀
-                    console.log('检测到纯base64数据，添加前缀');
-                    imageSrc = `data:image/png;base64,${imageSrc}`;
-                } else {
-                    // 其他情况，尝试作为base64处理
-                    console.log('作为base64数据处理');
-                    imageSrc = `data:image/png;base64,${imageSrc}`;
-                }
+            // 如果没有正在播放，立即开始播放
+            if (!this.isPlaying && this.videoQueue.length === 1) {
+                this.playNextVideo();
             }
             
-            console.log('最终图片URL长度:', imageSrc.length);
-            console.log('图片URL前100字符:', imageSrc.substring(0, 100));
-            
-            currentFrame.onload = function() {
-                console.log('✅ 图片加载成功');
-                currentFrame.style.display = 'block';
-                videoPlayer.style.display = 'none';
-                videoPlaceholder.style.display = 'none';
-            };
-            
-            currentFrame.onerror = function() {
-                console.error('❌ 图片加载失败');
-                console.log('图片SRC:', imageSrc.substring(0, 200) + '...');
-                
-                // 尝试不同的格式
-                const alternativeSrc = imageSrc.replace('image/png', 'image/jpeg');
-                console.log('尝试JPEG格式:', alternativeSrc.substring(0, 100));
-                currentFrame.src = alternativeSrc;
-            };
-            
-            currentFrame.src = imageSrc;
+        } else if (result.current_frame) {
+            // 如果没有视频数据，显示当前帧
+            console.log('🖼️ 显示当前帧');
+            this.showCurrentFrame(result.current_frame);
         } else {
             // 没有媒体数据
             console.log('没有可显示的媒体数据');
@@ -316,6 +310,85 @@ class VideoGenerator {
             currentFrame.style.display = 'none';
             videoPlaceholder.style.display = 'block';
         }
+        
+        // 更新当前图像状态为最后一帧（用于下一次推理）
+        if (result.current_frame) {
+            this.currentImage = result.current_frame;
+            console.log('✅ 更新当前图像状态为最后一帧');
+        }
+    }
+
+    playNextVideo() {
+        if (this.videoQueue.length === 0) {
+            console.log('视频队列为空，停止播放');
+            this.isPlaying = false;
+            return;
+        }
+
+        const nextVideoSrc = this.videoQueue.shift(); // 取出队列中的第一个视频
+        const videoPlayer = document.getElementById('videoPlayer');
+        
+        console.log('开始播放下一个视频，队列剩余:', this.videoQueue.length);
+        
+        this.isPlaying = true;
+        
+        // 设置视频源
+        videoPlayer.src = nextVideoSrc;
+        
+        // 自动播放
+        videoPlayer.play().then(() => {
+            console.log('✅ 视频自动播放成功');
+        }).catch(error => {
+            console.warn('❌ 自动播放被阻止:', error);
+            // 如果自动播放被阻止，显示播放按钮让用户手动点击
+            videoPlayer.controls = true;
+            this.isPlaying = false;
+        });
+    }
+
+    showCurrentFrame(frameData) {
+        const videoPlayer = document.getElementById('videoPlayer');
+        const currentFrame = document.getElementById('currentFrame');
+        const videoPlaceholder = document.querySelector('.video-placeholder');
+        
+        // 清空视频队列（如果有的话）
+        this.videoQueue = [];
+        this.isPlaying = false;
+        videoPlayer.style.display = 'none';
+        
+        let imageSrc = frameData;
+        
+        // 处理base64数据格式
+        if (typeof imageSrc === 'string') {
+            if (imageSrc.startsWith('data:image/')) {
+                // 已经是data URL，直接使用
+                console.log('使用完整的data URL');
+            } else if (imageSrc.startsWith('/9j/') || imageSrc.startsWith('iVBOR')) {
+                // 是纯base64数据，需要添加前缀
+                console.log('检测到纯base64数据，添加前缀');
+                imageSrc = `data:image/png;base64,${imageSrc}`;
+            } else {
+                // 其他情况，尝试作为base64处理
+                console.log('作为base64数据处理');
+                imageSrc = `data:image/png;base64,${imageSrc}`;
+            }
+        }
+        
+        currentFrame.onload = () => {
+            console.log('✅ 图片加载成功');
+            currentFrame.style.display = 'block';
+            videoPlaceholder.style.display = 'none';
+        };
+        
+        currentFrame.onerror = () => {
+            console.error('❌ 图片加载失败');
+            // 尝试不同的格式
+            const alternativeSrc = imageSrc.replace('image/png', 'image/jpeg');
+            console.log('尝试JPEG格式');
+            currentFrame.src = alternativeSrc;
+        };
+        
+        currentFrame.src = imageSrc;
     }
 
     async testConnection() {
@@ -345,12 +418,17 @@ class VideoGenerator {
     clearAll() {
         this.currentImage = null;
         this.currentKeys = [];
+        this.videoQueue = []; // 清空视频队列
+        this.isPlaying = false; // 重置播放状态
+        
+        const videoPlayer = document.getElementById('videoPlayer');
+        videoPlayer.src = ''; // 清空视频源
+        videoPlayer.style.display = 'none';
         
         document.getElementById('preview').src = '';
         document.getElementById('preview').style.display = 'none';
         document.querySelector('.upload-placeholder').style.display = 'block';
         
-        document.getElementById('videoPlayer').style.display = 'none';
         document.getElementById('currentFrame').style.display = 'none';
         document.querySelector('.video-placeholder').style.display = 'block';
         
