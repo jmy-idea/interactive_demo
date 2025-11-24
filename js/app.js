@@ -2,9 +2,9 @@ class VideoGenerator {
     constructor() {
         this.currentImage = null;
         this.currentKeys = [];
-        this.currentModel = 'wan 1.3B';
-        this.isProcessing = false; // 防止重复发送
-        this.lastSendTime = 0; // 节流控制
+        this.currentModel = 'wan_1.3B'; // 修正模型名称
+        this.isProcessing = false;
+        this.lastSendTime = 0;
         this.init();
     }
 
@@ -44,15 +44,67 @@ class VideoGenerator {
             if (e.target.files[0]) this.handleImageUpload(e.target.files[0]);
         });
 
-        // 键盘控制 - 实时发送
+        // 键盘控制
         document.addEventListener('keydown', (e) => this.handleKeyDown(e));
         document.addEventListener('keyup', (e) => this.handleKeyUp(e));
 
-        // 按钮事件 - 移除发送按钮
+        // 按钮事件 - 添加reset按钮
         document.getElementById('clearButton').addEventListener('click', () => this.clearAll());
+        document.getElementById('resetButton').addEventListener('click', () => this.resetPipeline());
         document.getElementById('testButton').addEventListener('click', () => this.testConnection());
     }
 
+    // 添加resetPipeline方法
+    async resetPipeline() {
+        if (!this.currentModel) {
+            this.setStatus('请先选择模型');
+            return;
+        }
+
+        this.setStatus('正在重置pipeline...');
+        
+        try {
+            // 获取对应的pipeline ID
+            const modelConfig = MODEL_CONFIG[this.currentModel];
+            const pipelineId = modelConfig ? modelConfig.pipeline : this.currentModel;
+
+            console.log('发送reset信号到后端:', { model: pipelineId });
+
+            const response = await fetch(`${API_CONFIG.baseURL}${API_CONFIG.endpoints.reset}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: pipelineId
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP错误! 状态码: ${response.status}, 详情: ${errorText}`);
+            }
+
+            const result = await response.json();
+            console.log('Reset响应:', result);
+            
+            if (result.success) {
+                this.setStatus(`✅ ${result.message || 'Pipeline重置成功'}`);
+                // 清空当前状态
+                this.currentKeys = [];
+                this.updateKeyDisplay();
+                this.updateKeyVisual();
+            } else {
+                this.setStatus(`❌ 重置失败: ${result.error || '未知错误'}`);
+            }
+            
+        } catch (error) {
+            console.error('Reset错误:', error);
+            this.setStatus('重置失败：' + error.message);
+        }
+    }
+
+    // 其他方法保持不变...
     handleImageUpload(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -72,7 +124,6 @@ class VideoGenerator {
     handleKeyDown(e) {
         const key = e.key.toLowerCase();
         if (['w', 'a', 's', 'd'].includes(key) && !this.currentKeys.includes(key)) {
-            // 添加按键
             this.currentKeys.push(key);
             this.updateKeyDisplay();
             this.updateKeyVisual();
@@ -90,27 +141,10 @@ class VideoGenerator {
             this.updateKeyDisplay();
             this.updateKeyVisual();
             
-            // 按键释放时也发送状态更新
             if (this.currentKeys.length === 0) {
                 this.sendToServer();
             }
         }
-    }
-
-    updateKeyDisplay() {
-        document.getElementById('currentKeys').textContent = 
-            `当前按键：${this.currentKeys.join(', ') || '无'}`;
-    }
-
-    updateKeyVisual() {
-        ['w', 'a', 's', 'd'].forEach(key => {
-            const element = document.getElementById(`key${key.toUpperCase()}`);
-            if (this.currentKeys.includes(key)) {
-                element.classList.add('key-active');
-            } else {
-                element.classList.remove('key-active');
-            }
-        });
     }
 
     async sendToServer() {
@@ -134,9 +168,8 @@ class VideoGenerator {
         this.setStatus('发送控制指令...');
 
         try {
-            // 获取对应的pipeline ID
             const modelConfig = MODEL_CONFIG[this.currentModel];
-            const pipelineId = modelConfig ? modelConfig.pipeline : 'wan_1.3b';
+            const pipelineId = modelConfig ? modelConfig.pipeline : this.currentModel;
 
             console.log('发送数据到后端:', {
                 model: pipelineId,
@@ -156,17 +189,10 @@ class VideoGenerator {
                 })
             });
 
-            console.log('收到响应状态:', response.status);
-            console.log('响应头:', response.headers);
-
             if (!response.ok) {
-                // 获取详细的错误信息
                 let errorText;
                 try {
                     errorText = await response.text();
-                    console.log('错误响应内容:', errorText);
-                    
-                    // 尝试解析为JSON
                     const errorData = JSON.parse(errorText);
                     throw new Error(`HTTP错误! 状态码: ${response.status}, 详情: ${errorData.error || errorText}`);
                 } catch (e) {
@@ -186,11 +212,27 @@ class VideoGenerator {
         }
     }
 
+    // 其他方法保持不变...
+    updateKeyDisplay() {
+        document.getElementById('currentKeys').textContent = 
+            `当前按键：${this.currentKeys.join(', ') || '无'}`;
+    }
+
+    updateKeyVisual() {
+        ['w', 'a', 's', 'd'].forEach(key => {
+            const element = document.getElementById(`key${key.toUpperCase()}`);
+            if (this.currentKeys.includes(key)) {
+                element.classList.add('key-active');
+            } else {
+                element.classList.remove('key-active');
+            }
+        });
+    }
+
     handleServerResponse(result) {
         if (result.success) {
             this.setStatus(`控制指令已处理 - 模型: ${this.currentModel}`);
             
-            // 更新结果文本
             document.getElementById('result').innerHTML = `
                 <div class="result-success">
                     <strong>实时控制结果：</strong><br>
@@ -201,7 +243,6 @@ class VideoGenerator {
                 </div>
             `;
 
-            // 显示视频或图片
             this.displayMedia(result);
         } else {
             this.setStatus('处理失败：' + (result.error || '未知错误'));
@@ -214,13 +255,11 @@ class VideoGenerator {
         const videoPlaceholder = document.querySelector('.video-placeholder');
 
         if (result.video_data) {
-            // 显示视频
             videoPlayer.src = result.video_data;
             videoPlayer.style.display = 'block';
             currentFrame.style.display = 'none';
             videoPlaceholder.style.display = 'none';
         } else if (result.current_frame) {
-            // 显示当前帧
             currentFrame.src = `data:image/png;base64,${result.current_frame}`;
             currentFrame.style.display = 'block';
             videoPlayer.style.display = 'none';
@@ -239,7 +278,6 @@ class VideoGenerator {
     
             const result = await response.json();
             
-            // 显示详细的pipeline状态
             let statusMessage = '连接成功！服务器状态：\n';
             for (const [pipelineId, pipelineStatus] of Object.entries(result)) {
                 statusMessage += `${pipelineId}: ${pipelineStatus.status}\n`;
