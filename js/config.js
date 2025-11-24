@@ -7,21 +7,20 @@ const API_CONFIG = {
     }
 };
 
-// 模型配置
 const MODEL_CONFIG = {
-    '1.3B': {
+    'wan_1.3b': {
         name: 'Wan2.1-Fun 1.3B模型',
-        path: '/root/wzy/model/Wan2.1-Fun-V1.1-1.3B-Control-Camera',
+        pipeline: 'wan_1.3b',
         description: '轻量级模型，快速推理'
     },
-    '14B': {
+    'wan_14b': {
         name: 'Wan2.1-Fun 14B模型', 
-        path: '/root/wzy/model/Wan2.1-Fun-V1.1-14B-Control-Camera',
+        pipeline: 'wan_14b',
         description: '高质量模型，效果更好'
     },
-    'custom': {
+    'custom_model': {
         name: '自定义模型',
-        path: '',
-        description: '使用自定义模型路径'
+        pipeline: 'custom_model',
+        description: '使用自定义pipeline'
     }
 };

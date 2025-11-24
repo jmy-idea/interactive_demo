@@ -126,13 +126,11 @@ class VideoGenerator {
 
             const response = await fetch(`${API_CONFIG.baseURL}${API_CONFIG.endpoints.process}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     image: this.currentImage,
                     keys: this.currentKeys,
-                    model: modelPath  // 发送模型信息给后端
+                    model: this.currentModel  // 发送pipeline ID
                 })
             });
 
