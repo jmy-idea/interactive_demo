@@ -209,10 +209,24 @@ class VideoGenerator {
         this.setStatus('测试服务器连接...');
         try {
             const response = await fetch(`${API_CONFIG.baseURL}${API_CONFIG.endpoints.status}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP错误! 状态码: ${response.status}`);
+            }
+    
             const result = await response.json();
-            this.setStatus(`连接成功: 服务器运行正常`);
+            
+            // 显示详细的pipeline状态
+            let statusMessage = '连接成功！服务器状态：\n';
+            for (const [pipelineId, pipelineStatus] of Object.entries(result)) {
+                statusMessage += `${pipelineId}: ${pipelineStatus.status}\n`;
+            }
+            
+            this.setStatus(statusMessage);
+            
         } catch (error) {
             this.setStatus('连接失败：' + error.message);
+            console.error('连接测试错误:', error);
         }
     }
 
