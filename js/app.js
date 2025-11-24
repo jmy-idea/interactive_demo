@@ -114,20 +114,18 @@ class VideoGenerator {
     }
 
     async sendToServer() {
-        // 检查是否有图片
         if (!this.currentImage) {
             this.setStatus('请先上传首帧图片');
             return;
         }
 
-        // 节流控制：避免过于频繁的请求
+        // 节流控制
         const now = Date.now();
-        if (now - this.lastSendTime < 100) { // 100ms 节流
+        if (now - this.lastSendTime < 100) {
             return;
         }
         this.lastSendTime = now;
 
-        // 防止重复请求
         if (this.isProcessing) {
             return;
         }
@@ -136,9 +134,16 @@ class VideoGenerator {
         this.setStatus('发送控制指令...');
 
         try {
+            // 获取对应的pipeline ID
             const modelConfig = MODEL_CONFIG[this.currentModel];
             const pipelineId = modelConfig ? modelConfig.pipeline : 'wan_1.3b';
-            
+
+            console.log('发送数据到后端:', {
+                model: pipelineId,
+                keys: this.currentKeys,
+                imageLength: this.currentImage.length
+            });
+
             const response = await fetch(`${API_CONFIG.baseURL}${API_CONFIG.endpoints.process}`, {
                 method: 'POST',
                 headers: {
@@ -151,16 +156,31 @@ class VideoGenerator {
                 })
             });
 
+            console.log('收到响应状态:', response.status);
+            console.log('响应头:', response.headers);
+
             if (!response.ok) {
-                throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                // 获取详细的错误信息
+                let errorText;
+                try {
+                    errorText = await response.text();
+                    console.log('错误响应内容:', errorText);
+                    
+                    // 尝试解析为JSON
+                    const errorData = JSON.parse(errorText);
+                    throw new Error(`HTTP错误! 状态码: ${response.status}, 详情: ${errorData.error || errorText}`);
+                } catch (e) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}, 响应: ${errorText || '无详细信息'}`);
+                }
             }
 
             const result = await response.json();
+            console.log('成功响应:', result);
             this.handleServerResponse(result);
             
         } catch (error) {
+            console.error('完整错误信息:', error);
             this.setStatus('发送失败：' + error.message);
-            console.error('错误详情:', error);
         } finally {
             this.isProcessing = false;
         }
